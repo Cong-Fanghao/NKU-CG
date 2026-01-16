@@ -10,6 +10,7 @@
 #include "shaders/ShaderCreator.hpp"
 
 #include <tuple>
+#include <shaders/BVHNode.hpp>
 namespace SimplePathTracer
 {
     using namespace NRenderer;
@@ -36,6 +37,7 @@ namespace SimplePathTracer
         SCam camera;                // 相机对象
 
         vector<SharedShader> shaderPrograms;  // 着色器程序列表
+        std::shared_ptr<BVHNode> bvhRoot;
         
     public:
         /**
