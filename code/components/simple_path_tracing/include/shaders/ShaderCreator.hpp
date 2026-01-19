@@ -4,6 +4,9 @@
 
 #include "Shader.hpp"
 #include "Lambertian.hpp"
+#include "Metal.hpp"
+#include "Dielectric.hpp" 
+#include "Textured.hpp"
 
 namespace SimplePathTracer
 {
@@ -28,6 +31,15 @@ namespace SimplePathTracer
             {
             case 0:  // Lambertian材质
                 shader = make_shared<Lambertian>(material, t);
+                break;
+            case 1:  // Metal - 金属材质
+                shader = make_shared<Metal>(material, t);
+                break;
+            case 2:  // Dielectric - 电介质材质
+                shader = make_shared<Dielectric>(material, t);
+                break;
+            case 3:  // TexturedLambertian
+                shader = make_shared<TexturedLambertian>(material, t);
                 break;
             default:  // 默认使用Lambertian
                 shader = make_shared<Lambertian>(material, t);
