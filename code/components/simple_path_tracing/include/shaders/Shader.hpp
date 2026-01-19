@@ -5,7 +5,6 @@
 #include "geometry/vec.hpp"
 #include "common/macros.hpp"
 #include "scene/Scene.hpp"
-
 #include "Scattered.hpp"
 
 namespace SimplePathTracer
@@ -13,39 +12,49 @@ namespace SimplePathTracer
     using namespace NRenderer;
     using namespace std;
 
-    constexpr float PI = 3.1415926535898f;  // 圆周率常量
+    constexpr float PI = 3.1415926535898f;
 
     /**
      * 着色器基类
-     * 定义材质与光线交互的接口，实现不同的光照模型
+     * 添加直接光照计算接口
      */
     class Shader
     {
     protected:
-        Material& material;              // 材质引用
-        vector<Texture>& textureBuffer;  // 纹理缓冲区引用
-        
+        Material& material;
+        vector<Texture>& textureBuffer;
+
     public:
-        /**
-         * 构造函数
-         * @param material 材质对象
-         * @param textures 纹理缓冲区
-         */
         Shader(Material& material, vector<Texture>& textures)
-            : material              (material)
-            , textureBuffer         (textures)
-        {}
-        
+            : material(material)
+            , textureBuffer(textures)
+        {
+        }
+
         /**
-         * 计算光线与材质的交互结果
-         * @param ray 入射光线
-         * @param hitPoint 相交点
-         * @param normal 法向量
-         * @return 散射信息
+         * 间接光照计算（原有的散射计算）
          */
         virtual Scattered shade(const Ray& ray, const Vec3& hitPoint, const Vec3& normal) const = 0;
+
+        /**
+         * 直接光照计算 - 新增接口
+         * @param ray 入射光线
+         * @param hitPoint 交点位置
+         * @param normal 法线
+         * @param light 光源信息
+         * @param lightDir 光源方向
+         * @param lightDistance 光源距离
+         * @return 直接光照贡献
+         */
+        virtual Vec3 evaluateDirectLighting(const Ray& ray, const Vec3& hitPoint, const Vec3& normal,
+            const AreaLight& light, const Vec3& lightDir, float lightDistance) const = 0;
+
+        /**
+         * 获取材质的BRDF值 - 辅助函数
+         */
+        virtual Vec3 getBRDF(const Vec3& wi, const Vec3& wo, const Vec3& normal) const = 0;
     };
-    SHARE(Shader);  // 定义共享指针类型
+    SHARE(Shader);
 }
 
 #endif

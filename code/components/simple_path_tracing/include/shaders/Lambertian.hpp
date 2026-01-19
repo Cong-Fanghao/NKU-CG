@@ -32,6 +32,11 @@ namespace SimplePathTracer
          * @return …¢…‰–≈œ¢
          */
         Scattered shade(const Ray& ray, const Vec3& hitPoint, const Vec3& normal) const;
+
+        Vec3 evaluateDirectLighting(const Ray& ray, const Vec3& hitPoint, const Vec3& normal,
+            const AreaLight& light, const Vec3& lightDir, float lightDistance) const override;
+
+        Vec3 getBRDF(const Vec3& wi, const Vec3& wo, const Vec3& normal) const override;
     };
 }
 

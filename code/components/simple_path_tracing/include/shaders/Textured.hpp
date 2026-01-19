@@ -85,6 +85,83 @@ namespace SimplePathTracer
                 pdf
             };
         }
+
+        Vec3 evaluateDirectLighting(const Ray& ray, const Vec3& hitPoint, const Vec3& normal,
+            const AreaLight& light, const Vec3& lightDir, float lightDistance) const
+        {
+            // 获取最终颜色（考虑纹理）
+            Vec3 finalColor = getFinalColor(hitPoint, normal);
+
+            // Lambertian BRDF：finalColor / π
+            Vec3 brdf = finalColor / M_PI;
+
+            // 计算余弦项
+            float cosTheta = glm::max(0.0f, glm::dot(normal, lightDir));
+
+            // 计算距离衰减
+            float attenuation = 1.0f / (lightDistance * lightDistance);
+
+            // 直接光照贡献 = BRDF * 光源辐射度 * 余弦项 * 距离衰减
+            return brdf * light.radiance * cosTheta * attenuation;
+        }
+
+        Vec3 getBRDF(const Vec3& wi, const Vec3& wo, const Vec3& normal) const
+        {
+            // Lambertian BRDF是常数：finalColor / π
+            // 注意：这里我们使用命中点的颜色，但实际应该基于具体的wi和wo
+            // 对于Lambertian材质，BRDF是常数，不依赖于方向
+            Vec3 finalColor = baseColor; // 简化处理，使用基础颜色
+            return finalColor / M_PI;
+        }
+
+        Vec2 computeUV(const Vec3& hitPoint, const Vec3& normal) const
+        {
+            // 基于法线主方向选择投影平面
+            Vec3 absNormal = glm::abs(normal);
+            Vec2 uv;
+
+            if (absNormal.x > absNormal.y && absNormal.x > absNormal.z) {
+                // 使用YZ平面
+                uv = Vec2(hitPoint.y, hitPoint.z);
+            }
+            else if (absNormal.y > absNormal.x && absNormal.y > absNormal.z) {
+                // 使用XZ平面
+                uv = Vec2(hitPoint.x, hitPoint.z);
+            }
+            else {
+                // 使用XY平面
+                uv = Vec2(hitPoint.x, hitPoint.y);
+            }
+
+            // 将UV坐标归一化到[0,1]范围
+            uv = uv * 0.01f;  // 缩放系数
+            uv.x = uv.x - std::floor(uv.x);
+            uv.y = uv.y - std::floor(uv.y);
+
+            if (uv.x < 0) uv.x += 1.0f;
+            if (uv.y < 0) uv.y += 1.0f;
+
+            return uv;
+        }
+
+        Vec3 getFinalColor(const Vec3& hitPoint, const Vec3& normal) const
+        {
+            Vec3 finalColor = baseColor;
+
+            if (hasTexture && textureId >= 0 && textureId < textureBuffer.size()) {
+                // 计算UV坐标
+                Vec2 uv = computeUV(hitPoint, normal);
+
+                // 这里需要实现纹理采样
+                // 暂时使用程序化纹理作为替代
+                finalColor = baseColor * (0.7f + 0.3f * sin(hitPoint.x * 0.1f) * cos(hitPoint.z * 0.1f));
+
+                // 未来实现纹理采样：
+                // finalColor = textureBuffer[textureId].sample(uv.x, uv.y);
+            }
+
+            return finalColor;
+        }
     };
 }
 

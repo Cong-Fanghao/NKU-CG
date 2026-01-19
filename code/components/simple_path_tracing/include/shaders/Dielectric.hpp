@@ -111,6 +111,47 @@ namespace SimplePathTracer
             return Scattered{ scatteredRay, finalAttenuation, emitted, pdf };
         }
 
+        Vec3 evaluateDirectLighting(const Ray& ray, const Vec3& hitPoint, const Vec3& normal,
+            const AreaLight& light, const Vec3& lightDir, float lightDistance) const {
+            // 介电材质同时考虑反射和折射
+            Vec3 outwardNormal;
+            Vec3 reflected = reflect(ray.direction, normal);
+            float niOverNt;
+            Vec3 refracted;
+
+            if (glm::dot(ray.direction, normal) > 0) {
+                outwardNormal = -normal;
+                niOverNt = refractiveIndex;
+            }
+            else {
+                outwardNormal = normal;
+                niOverNt = 1.0f / refractiveIndex;
+            }
+
+            bool canRefract = refract(ray.direction, outwardNormal, niOverNt, refracted);
+            float reflectProb = canRefract ? schlick(glm::dot(ray.direction, normal), refractiveIndex) : 1.0f;
+
+            // 计算反射和折射成分
+            Vec3 reflection = reflect(ray.direction, normal);
+            float reflectionAlignment = glm::max(0.0f, glm::dot(reflection, lightDir));
+
+            // 简化的菲涅尔项
+            Vec3 directLighting = Vec3(reflectProb) * attenuation * reflectionAlignment;
+
+            if (canRefract) {
+                float refractionAlignment = glm::max(0.0f, glm::dot(refracted, lightDir));
+                directLighting += Vec3(1.0f - reflectProb) * attenuation * refractionAlignment;
+            }
+
+            float lightAttenuation = 1.0f / (lightDistance * lightDistance);
+            return directLighting * light.radiance * lightAttenuation;
+        }
+
+        Vec3 getBRDF(const Vec3& wi, const Vec3& wo, const Vec3& normal) const {
+            // 介电材质的BRDF比较复杂，这里返回一个近似值
+            return attenuation * 0.5f; // 简化处理
+        }
+
     private:
         /**
          * 计算反射方向

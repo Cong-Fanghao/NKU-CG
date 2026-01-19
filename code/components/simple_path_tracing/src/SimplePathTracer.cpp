@@ -173,44 +173,79 @@ namespace SimplePathTracer
      * @return 光线颜色
      */
     RGB SimplePathTracerRenderer::trace(const Ray& r, int currDepth) {
-        // 达到最大递归深度，返回环境光
-        if (currDepth == depth) return scene.ambient.constant;
-
-        // 查找最近的物体和光源相交
         auto hitObject = closestHitObject(r);
-        auto [t, emitted] = closestHitLight(r);
+        auto [t, emittedFromLight] = closestHitLight(r);
 
-        // 如果光线击中物体
         if (hitObject && hitObject->t < t) {
             auto mtlHandle = hitObject->material;
-            // 使用材质着色器计算散射
-            auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
-            auto scatteredRay = scattered.ray;
-            auto attenuation = scattered.attenuation;
-            auto emitted = scattered.emitted;
 
-            // 递归追踪散射光线
-            auto next = trace(scatteredRay, currDepth + 1);
-            float n_dot_in = glm::dot(hitObject->normal, scatteredRay.direction);
+            // ███ 计算直接光照（修复版）███
+            Vec3 directLighting(0.0f);
+
+            for (const auto& areaLight : scene.areaLightBuffer) {
+                for (int i = 0; i < 4; i++) {
+                    // 1. 在光源表面采样一点
+                    Vec2 uv = defaultSamplerInstance<UniformInSquare>().sample2d();
+
+                    // 注意：position是角点，不是中心，所以采样方式不同
+                    Vec3 lightSamplePoint = areaLight.position +
+                        areaLight.u * uv.x +
+                        areaLight.v * uv.y;
+
+                    Vec3 lightDir = lightSamplePoint - hitObject->hitPoint;
+                    float lightDistance = glm::length(lightDir);
+                    lightDir = glm::normalize(lightDir);
+
+                    // 2. ███ 从u和v计算法线（关键修复）███
+                    Vec3 lightNormal = glm::normalize(glm::cross(areaLight.u, areaLight.v));
+
+                    // 确保法线朝向正确（可能需要反转）
+                    float cosLight = glm::dot(lightNormal, -lightDir);
+                    if (cosLight <= 0.0f) continue; // 光线在光源背面
+
+                    // 3. 可见性测试
+                    Ray shadowRay(hitObject->hitPoint + hitObject->normal * 0.001f, lightDir);
+                    auto shadowHit = closestHitObject(shadowRay);
+
+                    if (!shadowHit || shadowHit->t > lightDistance - 0.001f) {
+                        // 4. ███ 从u和v计算面积（关键修复）███
+                        float lightArea = glm::length(areaLight.u) * glm::length(areaLight.v);
+
+                        // 5. 调用Shader计算BRDF贡献
+                        Vec3 lightContribution = shaderPrograms[mtlHandle.index()]->evaluateDirectLighting(
+                            r, hitObject->hitPoint, hitObject->normal,
+                            areaLight, lightDir, lightDistance
+                        );
+
+                        // 6. 应用Monte Carlo权重
+                        directLighting += lightContribution * lightArea * cosLight;
+                    }
+                }
+            }
+
+            // 平均化采样结果
+            if (!scene.areaLightBuffer.empty()) {
+                directLighting /= (4.0f * scene.areaLightBuffer.size());
+            }
+
+            // 深度限制
+            if (currDepth >= depth) {
+                return directLighting;
+            }
+
+            // 间接光照
+            auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
+            auto next = trace(scattered.ray, currDepth + 1);
+            float n_dot_in = glm::dot(hitObject->normal, scattered.ray.direction);
             float pdf = scattered.pdf;
 
-            /**
-             * 路径追踪渲染方程实现：
-             * emitted      - Le(p, w_0) 自发光
-             * next         - Li(p, w_i) 入射光
-             * n_dot_in     - cos<n, w_i> 余弦项
-             * attenuation  - BRDF 双向反射分布函数
-             * pdf          - p(w) 概率密度函数
-             **/
-            return emitted + attenuation * next * n_dot_in / pdf;
+            return scattered.emitted + directLighting + scattered.attenuation * next * n_dot_in / pdf;
         }
-        // 如果光线击中光源
         else if (t != FLOAT_INF) {
-            return emitted;
+            return emittedFromLight;
         }
-        // 光线未击中任何物体
         else {
-            return Vec3{ 0 };
+            return scene.ambient.constant;
         }
     }
 }

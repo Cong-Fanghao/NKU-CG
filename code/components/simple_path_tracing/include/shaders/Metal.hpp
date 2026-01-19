@@ -54,6 +54,31 @@ namespace SimplePathTracer
             };
         }
 
+        Vec3 evaluateDirectLighting(const Ray& ray, const Vec3& hitPoint, const Vec3& normal,
+            const AreaLight& light, const Vec3& lightDir, float lightDistance) const {
+            Vec3 incident = glm::normalize(ray.direction);
+            Vec3 perfectReflectDir = reflect(incident, normal);
+
+            // 计算镜面反射方向与光源方向的一致性
+            float reflectionAlignment = glm::max(0.0f, glm::dot(perfectReflectDir, lightDir));
+
+            // 考虑粗糙度的影响
+            float specular = std::pow(reflectionAlignment, 1.0f / (roughness + 0.001f));
+
+            // 距离衰减
+            float attenuation = 1.0f / (lightDistance * lightDistance);
+
+            return albedo * light.radiance * specular * attenuation;
+        }
+
+        Vec3 getBRDF(const Vec3& wi, const Vec3& wo, const Vec3& normal) const {
+            // 简化的金属BRDF近似
+            Vec3 perfectReflectDir = reflect(wo, normal);
+            float alignment = glm::max(0.0f, glm::dot(perfectReflectDir, wi));
+            float specular = std::pow(alignment, 1.0f / (roughness + 0.001f));
+            return albedo * specular;
+        }
+
     private:
         Vec3 reflect(const Vec3& v, const Vec3& n) const
         {

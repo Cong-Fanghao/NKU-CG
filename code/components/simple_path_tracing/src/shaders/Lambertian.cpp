@@ -50,4 +50,24 @@ namespace SimplePathTracer
             pdf                     // 概率密度函数值
         };
     }
+
+    Vec3 Lambertian::evaluateDirectLighting(const Ray& ray, const Vec3& hitPoint, const Vec3& normal,
+        const AreaLight& light, const Vec3& lightDir, float lightDistance) const {
+        // Lambertian材质的BRDF是常数：albedo/π
+        Vec3 brdf = albedo / PI;
+
+        // 计算余弦项（法线和光源方向的点积）
+        float cosTheta = glm::max(0.0f, glm::dot(normal, lightDir));
+
+        // 计算距离衰减
+        float attenuation = 1.0f / (lightDistance * lightDistance);
+
+        // 直接光照贡献 = BRDF * 光源辐射度 * 余弦项 * 距离衰减
+        return brdf * light.radiance * cosTheta * attenuation;
+    }
+
+    Vec3 Lambertian::getBRDF(const Vec3& wi, const Vec3& wo, const Vec3& normal) const {
+        // Lambertian BRDF是常数
+        return albedo / PI;
+    }
 }
