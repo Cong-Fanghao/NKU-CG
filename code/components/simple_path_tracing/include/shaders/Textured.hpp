@@ -10,21 +10,21 @@
 #include <cmath>
 
 #ifndef M_PI
-    #define M_PI (float)3.1415926535
+#define M_PI (float)3.1415926535
 #endif
 
 namespace SimplePathTracer
 {
     /**
      * 支持纹理的Lambertian材质
-     * 在漫反射基础上添加纹理支持
+     * 在平面上生成明显的材质展示图案
      */
     class TexturedLambertian : public Shader
     {
     private:
-        Vec3 baseColor;           // 基础颜色（纹理缺失时使用）
-        int textureId;             // 纹理ID
-        bool hasTexture;           // 是否有纹理
+        Vec3 baseColor;
+        int textureId;
+        bool hasTexture;
 
     public:
         TexturedLambertian(Material& material, vector<Texture>& textures)
@@ -38,7 +38,7 @@ namespace SimplePathTracer
                 baseColor = (*colorProp).value;
             }
             else {
-                baseColor = Vec3(0.5f, 0.5f, 0.5f); // 默认灰色
+                baseColor = Vec3(0.8f, 0.8f, 0.8f); // 更亮的默认颜色
             }
 
             // 获取纹理ID
@@ -55,25 +55,13 @@ namespace SimplePathTracer
         {
             Vec3 origin = hitPoint;
 
-            // 使用半球采样器生成随机方向
+            // 半球采样
             Vec3 random = defaultSamplerInstance<HemiSphere>().sample3d();
             Onb onb{ normal };
             Vec3 direction = onb.local(random);
 
-            // 计算纹理颜色
-            Vec3 finalColor = baseColor;
-            if (hasTexture) {
-                // 简化：使用世界坐标的XZ平面作为UV坐标
-                float u = fmod(hitPoint.x * 0.01f, 1.0f);
-                float v = fmod(hitPoint.z * 0.01f, 1.0f);
-                if (u < 0) u += 1.0f;
-                if (v < 0) v += 1.0f;
-
-                // 这里需要实现纹理采样
-                // finalColor = textureBuffer[textureId].sample(u, v);
-                // 暂时使用基础颜色
-                finalColor = baseColor * (0.7f + 0.3f * sin(hitPoint.x * 0.1f) * cos(hitPoint.z * 0.1f));
-            }
+            // 获取最终颜色（包含展示图案）
+            Vec3 finalColor = generateDisplayPattern(hitPoint, normal);
 
             float pdf = 1.0f / (2 * M_PI);
             Vec3 attenuation = finalColor / M_PI;
@@ -87,80 +75,116 @@ namespace SimplePathTracer
         }
 
         Vec3 evaluateDirectLighting(const Ray& ray, const Vec3& hitPoint, const Vec3& normal,
-            const AreaLight& light, const Vec3& lightDir, float lightDistance) const
+            const AreaLight& light, const Vec3& lightDir, float lightDistance) const override
         {
-            // 获取最终颜色（考虑纹理）
-            Vec3 finalColor = getFinalColor(hitPoint, normal);
+            // 获取最终颜色（包含展示图案）
+            Vec3 finalColor = generateDisplayPattern(hitPoint, normal);
 
-            // Lambertian BRDF：finalColor / π
+            // Lambertian BRDF
             Vec3 brdf = finalColor / M_PI;
 
-            // 计算余弦项
+            // 余弦项
             float cosTheta = glm::max(0.0f, glm::dot(normal, lightDir));
 
-            // 计算距离衰减
+            // 距离衰减
             float attenuation = 1.0f / (lightDistance * lightDistance);
 
-            // 直接光照贡献 = BRDF * 光源辐射度 * 余弦项 * 距离衰减
             return brdf * light.radiance * cosTheta * attenuation;
         }
 
-        Vec3 getBRDF(const Vec3& wi, const Vec3& wo, const Vec3& normal) const
+        Vec3 getBRDF(const Vec3& wi, const Vec3& wo, const Vec3& normal) const override
         {
-            // Lambertian BRDF是常数：finalColor / π
-            // 注意：这里我们使用命中点的颜色，但实际应该基于具体的wi和wo
-            // 对于Lambertian材质，BRDF是常数，不依赖于方向
-            Vec3 finalColor = baseColor; // 简化处理，使用基础颜色
-            return finalColor / M_PI;
+            // 使用展示图案的颜色
+            return generateDisplayPattern(Vec3(0), normal) / M_PI;
         }
 
-        Vec2 computeUV(const Vec3& hitPoint, const Vec3& normal) const
+    private:
+        /**
+         * 生成材质展示图案 - 在平面上绘制明显的图案来展示材质特性
+         */
+        Vec3 generateDisplayPattern(const Vec3& point, const Vec3& normal) const
         {
-            // 基于法线主方向选择投影平面
+            // 根据法向量选择投影平面
             Vec3 absNormal = glm::abs(normal);
             Vec2 uv;
 
             if (absNormal.x > absNormal.y && absNormal.x > absNormal.z) {
-                // 使用YZ平面
-                uv = Vec2(hitPoint.y, hitPoint.z);
+                uv = Vec2(point.y, point.z); // YZ平面
             }
             else if (absNormal.y > absNormal.x && absNormal.y > absNormal.z) {
-                // 使用XZ平面
-                uv = Vec2(hitPoint.x, hitPoint.z);
+                uv = Vec2(point.x, point.z); // XZ平面
             }
             else {
-                // 使用XY平面
-                uv = Vec2(hitPoint.x, hitPoint.y);
+                uv = Vec2(point.x, point.y); // XY平面
             }
 
-            // 将UV坐标归一化到[0,1]范围
-            uv = uv * 0.01f;  // 缩放系数
-            uv.x = uv.x - std::floor(uv.x);
-            uv.y = uv.y - std::floor(uv.y);
+            // 缩放UV坐标
+            uv *= 0.5f;
 
-            if (uv.x < 0) uv.x += 1.0f;
-            if (uv.y < 0) uv.y += 1.0f;
+            // 生成中心圆形区域展示材质
+            Vec2 center = Vec2(0.5f, 0.5f);
+            float radius = 0.4f;
+            float dist = glm::length(uv - center);
 
-            return uv;
+            if (dist < radius) {
+                // 圆形区域内：展示纹理材质特性
+                return generateTexturePattern(uv);
+            }
+            else {
+                // 圆形区域外：边框和标签
+                return generateBorderPattern(uv, dist, radius);
+            }
         }
 
-        Vec3 getFinalColor(const Vec3& hitPoint, const Vec3& normal) const
+        /**
+         * 生成纹理材质图案
+         */
+        Vec3 generateTexturePattern(const Vec2& uv) const
         {
-            Vec3 finalColor = baseColor;
+            // 在圆形区域内生成明显的纹理图案
+            Vec2 scaledUV = uv * 10.0f; // 放大UV
 
-            if (hasTexture && textureId >= 0 && textureId < textureBuffer.size()) {
-                // 计算UV坐标
-                Vec2 uv = computeUV(hitPoint, normal);
+            // 生成网格纹理
+            float gridSize = 1.0f;
+            float gridX = glm::fract(scaledUV.x / gridSize);
+            float gridY = glm::fract(scaledUV.y / gridSize);
 
-                // 这里需要实现纹理采样
-                // 暂时使用程序化纹理作为替代
-                finalColor = baseColor * (0.7f + 0.3f * sin(hitPoint.x * 0.1f) * cos(hitPoint.z * 0.1f));
+            // 棋盘格效果
+            bool isChecker = (int(std::floor(scaledUV.x)) + int(std::floor(scaledUV.y))) % 2 == 0;
 
-                // 未来实现纹理采样：
-                // finalColor = textureBuffer[textureId].sample(uv.x, uv.y);
+            if (isChecker) {
+                // 亮色格子
+                return baseColor;
+            }
+            else {
+                // 暗色格子 - 展示材质对比
+                return baseColor * 0.6f;
+            }
+        }
+
+        /**
+         * 生成边框和标签图案
+         */
+        Vec3 generateBorderPattern(const Vec2& uv, float dist, float radius) const
+        {
+            // 边框效果
+            float borderWidth = 0.05f;
+            if (dist < radius + borderWidth) {
+                // 边框
+                return Vec3(0.1f, 0.1f, 0.1f); // 黑色边框
             }
 
-            return finalColor;
+            // 背景区域
+            Vec2 labelUV = (uv - Vec2(0.5f, 0.5f)) * 2.0f;
+
+            // 在四个角落添加文字标识
+            if (std::abs(labelUV.x) > 0.7f && std::abs(labelUV.y) > 0.7f) {
+                // 文字区域 - 使用对比色
+                return Vec3(0.9f, 0.9f, 0.9f); // 白色文字背景
+            }
+
+            // 默认背景
+            return Vec3(0.3f, 0.3f, 0.3f); // 灰色背景
         }
     };
 }

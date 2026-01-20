@@ -1,7 +1,13 @@
 Begin Material
 
-Material White
+Material white1  # 底部材质
 Prop diffuseColor RGB 0.725 0.71 0.68
+
+Material white2  # 正面材质
+Prop diffuseColor RGB 0.8 0.8 0.8  # 稍微亮一点的白色
+
+Material white3  # 天花板材质
+Prop diffuseColor RGB 0.65 0.65 0.65  # 稍微暗一点的白色
 
 Material Red
 Prop diffuseColor RGB 0.63 0.065 0.05
@@ -16,6 +22,9 @@ Prop roughness 0.1
 Material Glass
 Prop refractiveIndex 1.5
 Prop attenuation RGB 0.9 0.95 1.0
+
+Material BlueLambert  # 三棱锥的Lambertian材质
+Prop diffuseColor RGB 0.2 0.4 0.8
 
 End
 
@@ -35,19 +44,19 @@ P -278.0 278.0 278
 U 0 -556 0
 V 0 0 -556.0
 
-Plane TopWall White
+Plane TopWall white3  # 天花板使用white3材质
 N 0.0 -1.0 0.0
 P 278.0 278.0 278
 U -556 0 0
 V 0 0 -556
 
-Plane BottomWall White
+Plane BottomWall white1  # 底部使用white1材质
 N 0.0 1.0 0.0
 P 278.0 -278.0 278
 U -556 0 0
 V 0 0 -556
 
-Plane BackWall White
+Plane BackWall white2  # 正面使用white2材质
 N 0.0 0.0 -1.0
 P 278.0 278.0 278
 U -556 0 0
@@ -76,6 +85,54 @@ Sphere Sphere2 Glass
 N 0 0 1
 P 0 0 0
 R 50
+
+End
+
+Begin Model
+
+Model Pyramid  # 三棱锥模型
+Translation 150 -228 800  # 放在右侧球下方
+
+# 增大后的三棱锥 - 尺寸增加约50%
+# 底面三角形
+Triangle PyramidBase BlueLambert
+V1 0 -75 -75    # 增大后的底面顶点1
+V2 75 -75 37.5  # 增大后的底面顶点2  
+V3 -75 -75 37.5 # 增大后的底面顶点3
+N 0 -1 0        # 底面法线向下
+
+# 侧面三角形1
+Triangle PyramidSide1 BlueLambert
+V1 0 -75 -75    # 底面顶点1
+V2 75 -75 37.5  # 底面顶点2
+V3 0 75 0       # 增大后的顶点
+N -0.816 0.333 0.471  # 侧面法线
+
+# 侧面三角形2
+Triangle PyramidSide2 BlueLambert
+V1 75 -75 37.5  # 底面顶点2
+V2 -75 -75 37.5 # 底面顶点3
+V3 0 75 0       # 顶点
+N 0 0.333 0.943  # 侧面法线
+
+# 侧面三角形3
+Triangle PyramidSide3 BlueLambert
+V1 -75 -75 37.5 # 底面顶点3
+V2 0 -75 -75    # 底面顶点1
+V3 0 75 0       # 顶点
+N 0.816 0.333 0.471  # 侧面法线
+
+End
+
+Begin Model
+
+Model Sphere3  # 地面上的玻璃球 - 向后移动
+Translation 0 -228 900  # 向后移动，z坐标从600改为900
+
+Sphere Sphere3 Glass
+N 0 0 1
+P 0 0 0
+R 30
 
 End
 

@@ -7,6 +7,8 @@
 #include "Metal.hpp"
 #include "Dielectric.hpp" 
 #include "Textured.hpp"
+#include "Marble.hpp"
+#include "BDFR.hpp"
 
 namespace SimplePathTracer
 {
@@ -40,6 +42,12 @@ namespace SimplePathTracer
                 break;
             case 3:  // TexturedLambertian
                 shader = make_shared<TexturedLambertian>(material, t);
+                break;
+            case 4:  // Marble - 大理石材质（新增）
+                shader = make_shared<Marble>(material, t);
+                break;
+            case 5:  // DisneyBRDF - 新增的 Disney BRDF
+                shader = make_shared<DisneyBRDF>(material, t);
                 break;
             default:  // 默认使用Lambertian
                 shader = make_shared<Lambertian>(material, t);
