@@ -11,8 +11,8 @@
 namespace SimplePathTracer
 {
     /**
-     * 电介质材质（透明/折射）- 修复版
-     * 实现正确的玻璃折射效果，支持多重重要性采样
+     * 电介质材质（透明/折射）- 完整修复版
+     * 实现正确的玻璃折射效果，支持完整的菲涅尔反射和透射
      */
     class Dielectric : public Shader
     {
@@ -29,7 +29,7 @@ namespace SimplePathTracer
                 refractiveIndex = (*refIndexProp).value;
             }
             else {
-                refractiveIndex = 1.5f;
+                refractiveIndex = 1.5f; // 默认玻璃折射率
             }
 
             auto colorProp = material.getProperty<Property::Wrapper::RGBType>("attenuation");
@@ -37,22 +37,20 @@ namespace SimplePathTracer
                 attenuation = (*colorProp).value;
             }
             else {
-                attenuation = Vec3(1.0f, 1.0f, 1.0f);
+                attenuation = Vec3(1.0f, 1.0f, 1.0f); // 完全透明
             }
         }
 
         /**
-         * 修复的着色方法 - 使用正确的折射重要性采样
+         * 着色方法 - 使用菲涅尔重要性采样
          */
         Scattered shade(const Ray& ray, const Vec3& hitPoint, const Vec3& normal) const override
         {
             Vec3 wo = -glm::normalize(ray.direction); // 出射方向（指向外部）
-            Vec3 normalCorrected = normal;
-
-            // 判断光线是从外部进入还是内部射出
             bool fromOutside = glm::dot(wo, normal) > 0;
             float etaI = 1.0f; // 入射介质折射率（空气）
             float etaT = refractiveIndex; // 折射介质折射率
+            Vec3 normalCorrected = normal;
 
             if (!fromOutside) {
                 // 光线从内部射出，交换折射率
@@ -60,15 +58,9 @@ namespace SimplePathTracer
                 normalCorrected = -normal; // 使用内法线
             }
 
-            float cosThetaI = glm::abs(glm::dot(wo, normalCorrected));
-            float sinThetaI = std::sqrt(glm::max(0.0f, 1.0f - cosThetaI * cosThetaI));
-
-            // 计算临界角（全内反射）
-            float sinThetaT = etaI / etaT * sinThetaI;
-            bool canRefract = sinThetaT <= 1.0f;
-
             // 计算菲涅尔反射率
-            float reflectProb = canRefract ? fresnel(cosThetaI, etaI, etaT) : 1.0f;
+            float cosThetaI = glm::abs(glm::dot(wo, normalCorrected));
+            float reflectProb = fresnel(cosThetaI, etaI, etaT);
 
             // 重要性采样：根据菲涅尔反射率随机选择反射或折射
             float random = defaultSamplerInstance<UniformSampler>().sample1d();
@@ -76,69 +68,98 @@ namespace SimplePathTracer
             float pdf;
 
             if (random < reflectProb) {
-                // 反射采样
+                // 反射
                 wi = reflect(wo, normalCorrected);
-                pdf = reflectProb; // 反射的PDF
+                pdf = reflectProb;
             }
             else {
-                // 折射采样
-                if (canRefract) {
-                    wi = refract(wo, normalCorrected, etaI / etaT);
-                    pdf = 1.0f - reflectProb; // 折射的PDF
-                }
-                else {
+                // 尝试折射
+                float eta = etaI / etaT;
+                wi = refract(wo, normalCorrected, eta);
+
+                if (wi == Vec3(0, 0, 0)) {
                     // 全内反射，强制反射
                     wi = reflect(wo, normalCorrected);
                     pdf = 1.0f;
                     reflectProb = 1.0f;
                 }
+                else {
+                    pdf = 1.0f - reflectProb;
+                }
             }
 
-            // 计算BRDF值（介电材质的BRDF包含菲涅尔项）
-            Vec3 brdf = evaluateBRDF(wi, wo, normalCorrected, etaI, etaT);
-            float cosTheta = glm::max(0.0f, glm::dot(normalCorrected, wi));
+            // 计算衰减
+            Vec3 albedo = attenuation;
 
-            // 正确的衰减计算
-            Vec3 finalAttenuation = brdf * cosTheta / (pdf + 1e-6f);
+            if (random < reflectProb) {
+                // 反射贡献
+                albedo *= reflectProb;
+            }
+            else {
+                // 折射贡献，考虑辐射传输的变换
+                float eta = etaI / etaT;
+                albedo *= (1.0f - reflectProb) * (eta * eta);
+            }
+
+            // 添加小偏移避免自相交
+            Vec3 offset = normalCorrected * 0.001f;
+            if (glm::dot(wi, normalCorrected) < 0) {
+                offset = -offset; // 折射进入物体，偏移方向向内
+            }
 
             return {
-                Ray{hitPoint + normalCorrected * 0.001f, wi}, // 偏移避免自相交
-                finalAttenuation,
-                Vec3{0},
+                Ray{hitPoint + offset, glm::normalize(wi)},
+                albedo,
+                Vec3{0}, // 自发光为0
                 pdf
             };
         }
 
         /**
-         * 改进的直接光照计算 - 包含多重重要性采样
+         * 直接光照计算 - 包括对光源的显式采样
+         * 这是产生高亮点的关键
          */
         Vec3 evaluateDirectLighting(const Ray& ray, const Vec3& hitPoint, const Vec3& normal,
             const AreaLight& light, const Vec3& lightDir, float lightDistance) const override
         {
             Vec3 wo = -glm::normalize(ray.direction);
             Vec3 wi = lightDir;
-            Vec3 normalCorrected = glm::dot(wi, normal) > 0 ? normal : -normal;
 
-            // 判断入射/折射介质
-            bool fromOutside = glm::dot(wo, normalCorrected) > 0;
+            // 判断是反射还是折射
+            bool fromOutside = glm::dot(wo, normal) > 0;
             float etaI = 1.0f;
             float etaT = refractiveIndex;
+            Vec3 normalCorrected = normal;
+
             if (!fromOutside) {
                 std::swap(etaI, etaT);
+                normalCorrected = -normal;
             }
 
             // 计算BRDF
             Vec3 brdf = evaluateBRDF(wi, wo, normalCorrected, etaI, etaT);
             float cosTheta = glm::max(0.0f, glm::dot(normalCorrected, wi));
 
-            // 光源采样贡献
-            float lightPdf = 1.0f / (glm::length(light.u) * glm::length(light.v));
-            float brdfPdf = calculatePDF(wi, wo, normalCorrected, etaI, etaT);
+            // 计算光源面积
+            float lightArea = glm::length(light.u) * glm::length(light.v);
+            float lightPdf = 1.0f / lightArea;
+
+            // 计算材质采样PDF
+            float materialPdf = calculatePDF(wi, wo, normalCorrected, etaI, etaT);
 
             // 多重重要性采样权重（平衡启发式）
-            float weight = lightPdf / (lightPdf + brdfPdf + 1e-6f);
+            float weight = 0.0f;
+            if (materialPdf > 0.0f && lightPdf > 0.0f) {
+                weight = (lightPdf * lightPdf) / (lightPdf * lightPdf + materialPdf * materialPdf);
+            }
+            else if (lightPdf > 0.0f) {
+                weight = 1.0f;
+            }
 
-            float attenuation = 1.0f / (lightDistance * lightDistance);
+            // 距离衰减
+            float distance2 = lightDistance * lightDistance;
+            float attenuation = 1.0f / distance2;
+
             return weight * brdf * light.radiance * cosTheta * attenuation;
         }
 
@@ -148,6 +169,7 @@ namespace SimplePathTracer
             bool fromOutside = glm::dot(wo, normalCorrected) > 0;
             float etaI = 1.0f;
             float etaT = refractiveIndex;
+
             if (!fromOutside) {
                 std::swap(etaI, etaT);
             }
@@ -157,22 +179,38 @@ namespace SimplePathTracer
 
     private:
         /**
-         * 计算完整的介电BRDF
+         * 计算完整的介电BRDF - 修复版
+         * 现在正确包含反射和折射的狄拉克delta函数
          */
         Vec3 evaluateBRDF(const Vec3& wi, const Vec3& wo, const Vec3& normal,
             float etaI, float etaT) const
         {
-            float cosThetaI = glm::abs(glm::dot(wi, normal));
-            float cosThetaO = glm::abs(glm::dot(wo, normal));
+            // 计算精确的反射和折射方向
+            Vec3 reflected = reflect(wo, normal);
+            Vec3 refracted = refract(wo, normal, etaI / etaT);
 
-            // 菲涅尔反射率
+            // 判断入射方向
+            float reflectSimilarity = glm::dot(glm::normalize(wi), glm::normalize(reflected));
+            float refractSimilarity = (refracted != Vec3(0)) ?
+                glm::dot(glm::normalize(wi), glm::normalize(refracted)) : -1.0f;
+
+            // 计算菲涅尔系数
+            float cosThetaI = glm::abs(glm::dot(wo, normal));
             float F = fresnel(cosThetaI, etaI, etaT);
 
-            // 介电材质的BRDF包含反射和折射贡献
-            // 反射部分：F * delta(wi, reflect(wo))
-            // 折射部分：(1-F) * (etaT^2/etaI^2) * delta(wi, refract(wo))
-            // 这里我们返回一个近似的BRDF值
-            return attenuation * F / (cosThetaI + 1e-6f);
+            // 狄拉克delta函数的BRDF表示
+            // 在实际采样中，我们只需要在特定方向返回非零值
+            if (reflectSimilarity > 0.9999f) {
+                // wi是精确的反射方向
+                return attenuation * F / (glm::abs(glm::dot(wi, normal)) + 1e-6f);
+            }
+            else if (refracted != Vec3(0) && refractSimilarity > 0.9999f) {
+                // wi是精确的折射方向
+                float eta = etaI / etaT;
+                return attenuation * (1.0f - F) * (eta * eta) / (glm::abs(glm::dot(wi, normal)) + 1e-6f);
+            }
+
+            return Vec3(0.0f); // 不在精确方向上
         }
 
         /**
@@ -181,32 +219,36 @@ namespace SimplePathTracer
         float calculatePDF(const Vec3& wi, const Vec3& wo, const Vec3& normal,
             float etaI, float etaT) const
         {
-            float cosThetaI = glm::abs(glm::dot(wi, normal));
-            float F = fresnel(cosThetaI, etaI, etaT);
-
+            // 计算精确的反射和折射方向
             Vec3 reflected = reflect(wo, normal);
             Vec3 refracted = refract(wo, normal, etaI / etaT);
 
-            // 检查wi是接近反射方向还是折射方向
+            // 判断方向
             float reflectSimilarity = glm::dot(glm::normalize(wi), glm::normalize(reflected));
-            float refractSimilarity = refracted != Vec3(0) ?
+            float refractSimilarity = (refracted != Vec3(0)) ?
                 glm::dot(glm::normalize(wi), glm::normalize(refracted)) : -1.0f;
 
-            if (reflectSimilarity > 0.99f) {
-                return F; // wi接近反射方向
+            // 计算菲涅尔系数
+            float cosThetaI = glm::abs(glm::dot(wo, normal));
+            float F = fresnel(cosThetaI, etaI, etaT);
+
+            if (reflectSimilarity > 0.9999f) {
+                return F; // 反射的PDF
             }
-            else if (refractSimilarity > 0.99f) {
-                return 1.0f - F; // wi接近折射方向
+            else if (refracted != Vec3(0) && refractSimilarity > 0.9999f) {
+                return 1.0f - F; // 折射的PDF
             }
 
-            return 0.0f; // wi不在主要方向上
+            return 0.0f; // 不在精确方向上
         }
 
         /**
-         * 精确的菲涅尔计算
+         * 精确的菲涅尔计算 - 施利克近似
+         * 更高效且视觉上准确
          */
         float fresnel(float cosThetaI, float etaI, float etaT) const
         {
+            // 处理全内反射
             float sinThetaI = std::sqrt(glm::max(0.0f, 1.0f - cosThetaI * cosThetaI));
             float sinThetaT = etaI / etaT * sinThetaI;
 
@@ -216,12 +258,9 @@ namespace SimplePathTracer
 
             float cosThetaT = std::sqrt(glm::max(0.0f, 1.0f - sinThetaT * sinThetaT));
 
-            float rParallel = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
-                ((etaT * cosThetaI) + (etaI * cosThetaT));
-            float rPerp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
-                ((etaI * cosThetaI) + (etaT * cosThetaT));
-
-            return (rParallel * rParallel + rPerp * rPerp) * 0.5f;
+            // 施利克近似
+            float R0 = ((etaI - etaT) / (etaI + etaT)) * ((etaI - etaT) / (etaI + etaT));
+            return R0 + (1.0f - R0) * std::pow(1.0f - cosThetaI, 5.0f);
         }
 
         /**
