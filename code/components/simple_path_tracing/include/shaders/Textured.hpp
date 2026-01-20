@@ -60,7 +60,7 @@ namespace SimplePathTracer
             Onb onb{ normal };
             Vec3 direction = onb.local(random);
 
-            // 获取最终颜色（包含展示图案）
+            // 获取最终颜色
             Vec3 finalColor = generateDisplayPattern(hitPoint, normal);
 
             float pdf = 1.0f / (2 * M_PI);
@@ -77,7 +77,7 @@ namespace SimplePathTracer
         Vec3 evaluateDirectLighting(const Ray& ray, const Vec3& hitPoint, const Vec3& normal,
             const AreaLight& light, const Vec3& lightDir, float lightDistance) const override
         {
-            // 获取最终颜色（包含展示图案）
+            // 获取最终颜色
             Vec3 finalColor = generateDisplayPattern(hitPoint, normal);
 
             // Lambertian BRDF
@@ -174,16 +174,12 @@ namespace SimplePathTracer
                 return Vec3(0.1f, 0.1f, 0.1f); // 黑色边框
             }
 
-            // 背景区域
             Vec2 labelUV = (uv - Vec2(0.5f, 0.5f)) * 2.0f;
 
-            // 在四个角落添加文字标识
             if (std::abs(labelUV.x) > 0.7f && std::abs(labelUV.y) > 0.7f) {
-                // 文字区域 - 使用对比色
-                return Vec3(0.9f, 0.9f, 0.9f); // 白色文字背景
+                return Vec3(0.9f, 0.9f, 0.9f);
             }
 
-            // 默认背景
             return Vec3(0.3f, 0.3f, 0.3f); // 灰色背景
         }
     };

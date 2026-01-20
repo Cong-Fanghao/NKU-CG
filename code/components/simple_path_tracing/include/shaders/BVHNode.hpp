@@ -68,7 +68,7 @@ namespace SimplePathTracer
                 }
             }
 
-            // 平面相交检测（修复：添加平面相交检测）
+            // 平面相交检测
             for (const auto& pl : planes) {
                 auto hitRec = Intersection::xPlane(ray, pl, tMin, closest);
                 if (hitRec && hitRec->t < closest) {
@@ -97,7 +97,6 @@ namespace SimplePathTracer
             }
 
             for (const auto& pl : planes) {
-                // 修复：使用平面的实际包围盒计算
                 AABB planeBBox;
                 const float largeValue = 1000.0f;
                 Vec3 center = pl.position;

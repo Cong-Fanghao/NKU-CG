@@ -32,7 +32,7 @@ namespace SimplePathTracer
         }
 
         /**
-         * 间接光照计算（原有的散射计算）
+         * 间接光照计算
          */
         virtual Scattered shade(const Ray& ray, const Vec3& hitPoint, const Vec3& normal) const = 0;
 

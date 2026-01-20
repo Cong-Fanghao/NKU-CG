@@ -43,10 +43,10 @@ namespace SimplePathTracer
             case 3:  // TexturedLambertian
                 shader = make_shared<TexturedLambertian>(material, t);
                 break;
-            case 4:  // Marble - 大理石材质（新增）
+            case 4:  // Marble - 大理石材质
                 shader = make_shared<Marble>(material, t);
                 break;
-            case 5:  // DisneyBRDF - 新增的 Disney BRDF
+            case 5:  // DisneyBRDF
                 shader = make_shared<DisneyBRDF>(material, t);
                 break;
             default:  // 默认使用Lambertian

@@ -52,8 +52,8 @@ namespace SimplePathTracer
             for (auto& pl : scene.planeBuffer) {
                 BuildPrimitive prim;
                 prim.plane = &pl;
-                prim.bbox = calculatePlaneBBox(pl); // 修复：使用专门的计算函数
-                prim.center = prim.bbox.center();   // 修复：使用包围盒中心
+                prim.bbox = calculatePlaneBBox(pl);
+                prim.center = prim.bbox.center();
                 primitives.push_back(prim);
             }
 
@@ -72,7 +72,7 @@ namespace SimplePathTracer
             if (end - start <= 4) {
                 std::vector<Triangle> triangles;
                 std::vector<Sphere> spheres;
-                std::vector<Plane> planes; // 修复：添加平面支持
+                std::vector<Plane> planes;
 
                 for (size_t i = start; i < end; i++) {
                     if (primitives[i].triangle) {
@@ -81,11 +81,11 @@ namespace SimplePathTracer
                     else if (primitives[i].sphere) {
                         spheres.push_back(*primitives[i].sphere);
                     }
-                    else if (primitives[i].plane) { // 修复：处理平面
+                    else if (primitives[i].plane) {
                         planes.push_back(*primitives[i].plane);
                     }
                 }
-                return std::make_shared<BVHLeaf>(triangles, spheres, planes); // 修复：传递平面
+                return std::make_shared<BVHLeaf>(triangles, spheres, planes);
             }
 
             // 计算图元的质心包围盒

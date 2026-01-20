@@ -71,7 +71,7 @@ namespace SimplePathTracer
         Scattered shade(const Ray& ray, const Vec3& hitPoint, const Vec3& normal) const override
         {
             Vec3 origin = hitPoint;
-            Vec3 wo = -glm::normalize(ray.direction); // 视线方向指向外部
+            Vec3 wo = -glm::normalize(ray.direction);
 
             // 使用GXX多重要性采样
             float pdf;

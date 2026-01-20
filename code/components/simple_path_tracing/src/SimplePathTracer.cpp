@@ -179,7 +179,7 @@ namespace SimplePathTracer
         if (hitObject && hitObject->t < t) {
             auto mtlHandle = hitObject->material;
 
-            // ███ 计算直接光照（修复版）███
+            // 计算直接光照
             Vec3 directLighting(0.0f);
 
             for (const auto& areaLight : scene.areaLightBuffer) {
@@ -196,7 +196,7 @@ namespace SimplePathTracer
                     float lightDistance = glm::length(lightDir);
                     lightDir = glm::normalize(lightDir);
 
-                    // 2. ███ 从u和v计算法线（关键修复）███
+                    // 2. 从u和v计算法线
                     Vec3 lightNormal = glm::normalize(glm::cross(areaLight.u, areaLight.v));
 
                     // 确保法线朝向正确（可能需要反转）
@@ -208,7 +208,7 @@ namespace SimplePathTracer
                     auto shadowHit = closestHitObject(shadowRay);
 
                     if (!shadowHit || shadowHit->t > lightDistance - 0.001f) {
-                        // 4. ███ 从u和v计算面积（关键修复）███
+                        // 4.从u和v计算面积
                         float lightArea = glm::length(areaLight.u) * glm::length(areaLight.v);
 
                         // 5. 调用Shader计算BRDF贡献

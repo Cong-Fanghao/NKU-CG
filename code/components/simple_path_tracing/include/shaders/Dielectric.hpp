@@ -11,7 +11,7 @@
 namespace SimplePathTracer
 {
     /**
-     * 电介质材质（透明/折射）- 完整修复版
+     * 电介质材质（透明/折射）
      * 实现正确的玻璃折射效果，支持完整的菲涅尔反射和透射
      */
     class Dielectric : public Shader
@@ -46,7 +46,7 @@ namespace SimplePathTracer
          */
         Scattered shade(const Ray& ray, const Vec3& hitPoint, const Vec3& normal) const override
         {
-            Vec3 wo = -glm::normalize(ray.direction); // 出射方向（指向外部）
+            Vec3 wo = -glm::normalize(ray.direction); // 出射方向
             bool fromOutside = glm::dot(wo, normal) > 0;
             float etaI = 1.0f; // 入射介质折射率（空气）
             float etaT = refractiveIndex; // 折射介质折射率
@@ -179,7 +179,7 @@ namespace SimplePathTracer
 
     private:
         /**
-         * 计算完整的介电BRDF - 修复版
+         * 计算完整的介电BRDF
          * 现在正确包含反射和折射的狄拉克delta函数
          */
         Vec3 evaluateBRDF(const Vec3& wi, const Vec3& wo, const Vec3& normal,
